@@ -1,3 +1,3 @@
-from .model import imagebind_huge, ModalityType
+from imagebind.model import imagebind_huge, ModalityType
 
-from .utils.data import load_and_transform_audio_data, load_and_transform_text, load_and_transform_video_data, load_and_transform_vision_data
+from imagebind.utils.data import load_and_transform_audio_data, load_and_transform_text, load_and_transform_video_data, load_and_transform_vision_data
