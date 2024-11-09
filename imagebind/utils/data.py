@@ -24,7 +24,7 @@ from torchvision import transforms
 from imagebind.utils.multimodal_preprocessors import SimpleTokenizer
 
 DEFAULT_AUDIO_FRAME_SHIFT_MS = 10  # in milliseconds
-BPE_PATH = "bpe/bpe_simple_vocab_16e6.txt.gz"
+BPE_PATH = "imagebind/bpe/bpe_simple_vocab_16e6.txt.gz"
 
 
 def return_bpe_path():
