@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "imagebind"
+version = "0.1.0"
+description = ""
+authors = ["kirill <w_shkolenko@mail.ru>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+torch = "^2.5.1"
+pillow = "^11.0.0"
+pytorchvideo = "^0.1.5"
+torchvision = "^0.20.1"
+loguru = "^0.7.2"
+timm = "^1.0.11"
+einops = "^0.8.0"
+torchaudio = "^2.5.1"
+ftfy = "^6.3.1"
+regex = "^2024.11.6"
+
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.7.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
