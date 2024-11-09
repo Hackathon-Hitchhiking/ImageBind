@@ -14,14 +14,14 @@ import torch
 import torch.nn as nn
 from loguru import logger
 
-from utils.helpers import (
+from imagebind.utils.helpers import (
     EinOpsRearrange,
     LearnableLogitScaling,
     Normalize,
     SelectElement,
     SelectEOSAndProject,
 )
-from utils.multimodal_preprocessors import (
+from imagebind.utils.multimodal_preprocessors import (
     AudioPreprocessor,
     IMUPreprocessor,
     PadIm2Video,
@@ -31,7 +31,7 @@ from utils.multimodal_preprocessors import (
     TextPreprocessor,
     ThermalPreprocessor,
 )
-from utils.transformer import MultiheadAttention, SimpleTransformer
+from imagebind.utils.transformer import MultiheadAttention, SimpleTransformer
 
 ModalityType = SimpleNamespace(
     VISION="vision",
