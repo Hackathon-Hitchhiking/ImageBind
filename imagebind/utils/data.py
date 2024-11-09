@@ -322,12 +322,12 @@ def load_and_transform_video_data(
         for clip_timepoints in all_clips_timepoints:
             logger.debug(f"Processing clip timepoints: {clip_timepoints}")
             clip = video.get_clip(clip_timepoints[0], clip_timepoints[1])
-            if clip is None:
-                logger.warning("Clip not found.")
+            if clip is None or clip["video"] is None:
+                logger.warning("Clip not found or video frames are missing.")
                 continue
 
             # Extract and preprocess the video clip
-            video_clip = frame_sampler(clip["video"]) / 255.0
+            video_clip = frame_sampler(clip["video"]) / 255.0  # Normalize pixel values to [0, 1]
             video_clip = torch.stack([ensure_three_channels(frame) for frame in video_clip], dim=0)
             # Change shape from (T, C, H, W) to (C, T, H, W)
             video_clip = video_clip.permute(1, 0, 2, 3)
@@ -341,12 +341,18 @@ def load_and_transform_video_data(
 
         if all_video_clips:
             # Apply spatial cropping
-            all_video_clips = [SpatialCrop(224, num_crops=3)([clip]) for clip in all_video_clips]
-            all_video_clips = torch.stack(all_video_clips, dim=0)
+            spatial_crop = SpatialCrop(224, num_crops=3)
+            cropped_clips = []
+            for clip in all_video_clips:
+                # SpatialCrop expects a list of clips
+                cropped_clips.extend(spatial_crop([clip]))
+            # Stack the cropped clips
+            all_video_clips = torch.stack(cropped_clips, dim=0)
             video_outputs.append(all_video_clips)
 
     if video_outputs:
-        return torch.stack(video_outputs, dim=0).to(device)
+        # Concatenate all video outputs along the clip dimension
+        return torch.cat(video_outputs, dim=0).to(device)
     return None
 
 
