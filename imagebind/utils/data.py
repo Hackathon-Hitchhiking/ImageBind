@@ -303,7 +303,6 @@ def ensure_three_channels(tensor):
         raise ValueError(f"Unexpected number of channels: {tensor.shape[0]}")
     return tensor
 
-
 def load_and_transform_video_data(
         video_paths,
         device,
@@ -348,14 +347,13 @@ def load_and_transform_video_data(
 
             video_clip = frame_sampler(clip["video"]) / 255.0  # Приводим к диапазону 0-1
 
-            # Обеспечиваем 3 канала для каждого кадра перед нормализацией
+            # Убедимся, что все кадры в видео имеют 3 канала
             video_clip = torch.stack([ensure_three_channels(frame) for frame in video_clip], dim=0)
+            if any(frame.shape[0] != 3 for frame in video_clip):
+                raise RuntimeError("Some frames do not have 3 channels after conversion.")
 
-            # Применяем нормализацию и масштабирование
-            for i, frame in enumerate(video_clip):
-                logger.debug(f"Frame {i} shape before transform: {frame.shape}")
-                video_clip[i] = video_transform(frame)
-                logger.debug(f"Frame {i} shape after transform: {video_clip[i].shape}")
+            # Применяем нормализацию к каждому кадру
+            video_clip = torch.stack([video_transform(frame) for frame in video_clip], dim=0)
 
             all_video_clips.append(video_clip)
 
