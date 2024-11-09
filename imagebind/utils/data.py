@@ -294,42 +294,35 @@ class SpatialCrop(nn.Module):
 
 
 def ensure_three_channels(tensor):
-    # Проверяем количество каналов в тензоре
-    if tensor.shape[0] == 1:  # Если один канал (черно-белое изображение)
-        tensor = tensor.repeat(3, 1, 1)  # Повторяем канал, чтобы сделать 3 канала (RGB)
-    elif tensor.shape[0] == 2:  # Если два канала, добавляем третий канал
-        tensor = torch.cat(
-            [tensor, tensor[:1]], dim=0
-        )  # Добавляем первый канал для третьего
+    """Проверяет и преобразует кадр в 3 канала, если это необходимо."""
+    if tensor.shape[0] == 1:  # Черно-белое изображение
+        tensor = tensor.repeat(3, 1, 1)
+    elif tensor.shape[0] == 2:  # Два канала
+        tensor = torch.cat([tensor, tensor[:1]], dim=0)
     elif tensor.shape[0] != 3:
         raise ValueError(f"Unexpected number of channels: {tensor.shape[0]}")
     return tensor
 
 
 def load_and_transform_video_data(
-    video_paths,
-    device,
-    clip_duration=2,
-    clips_per_video=5,
-    sample_rate=16000,
+        video_paths,
+        device,
+        clip_duration=2,
+        clips_per_video=5,
+        sample_rate=16000,
 ):
-    logger.debug("extracting video")
+    logger.debug("Extracting video frames.")
     if video_paths is None:
         return None
 
     video_outputs = []
-    video_transform = transforms.Compose(
-        [
-            ShortSideScale(224),
-            transforms.Lambda(
-                lambda img: ensure_three_channels(img)
-            ),  # Убедимся, что у каждого кадра 3 канала
-            transforms.Normalize(
-                mean=(0.48145466, 0.4578275, 0.40821073),
-                std=(0.26862954, 0.26130258, 0.27577711),
-            ),
-        ]
-    )
+    video_transform = transforms.Compose([
+        ShortSideScale(224),
+        transforms.Normalize(
+            mean=(0.48145466, 0.4578275, 0.40821073),
+            std=(0.26862954, 0.26130258, 0.27577711),
+        ),
+    ])
 
     clip_sampler = ConstantClipsPerVideoSampler(
         clip_duration=clip_duration, clips_per_video=clips_per_video
@@ -344,26 +337,32 @@ def load_and_transform_video_data(
         )
 
         all_clips_timepoints = get_clip_timepoints(clip_sampler, video.duration)
+        all_video_clips = []
 
-        all_video = []
         for clip_timepoints in all_clips_timepoints:
-            logger.debug(f"processed {clip_timepoints} of {all_clips_timepoints}")
+            logger.debug(f"Processing clip timepoints: {clip_timepoints}")
             clip = video.get_clip(clip_timepoints[0], clip_timepoints[1])
             if clip is None:
-                raise ValueError("No clip found")
-            video_clip = frame_sampler(clip["video"])
-            video_clip = video_clip / 255.0  # Приводим к диапазону 0-1
+                logger.warning("Clip not found.")
+                continue
 
-            # Обработка каждого кадра для добавления недостающих каналов
-            video_clip = ensure_three_channels(video_clip)
+            video_clip = frame_sampler(clip["video"]) / 255.0  # Приводим к диапазону 0-1
 
-            all_video.append(video_clip)
+            # Обеспечиваем 3 канала для каждого кадра перед нормализацией
+            video_clip = torch.stack([ensure_three_channels(frame) for frame in video_clip], dim=0)
 
-        # Преобразование и нормализация
-        all_video = [video_transform(clip) for clip in all_video]
-        all_video = SpatialCrop(224, num_crops=3)(all_video)
+            # Применяем нормализацию и масштабирование
+            for i, frame in enumerate(video_clip):
+                logger.debug(f"Frame {i} shape before transform: {frame.shape}")
+                video_clip[i] = video_transform(frame)
+                logger.debug(f"Frame {i} shape after transform: {video_clip[i].shape}")
 
-        all_video = torch.stack(all_video, dim=0)
-        video_outputs.append(all_video)
+            all_video_clips.append(video_clip)
 
-    return torch.stack(video_outputs, dim=0).to(device)
+        if all_video_clips:
+            # Применение SpatialCrop и сборка видео клипов
+            all_video_clips = [SpatialCrop(224, num_crops=3)([clip]) for clip in all_video_clips]
+            all_video_clips = torch.stack(all_video_clips, dim=0)
+            video_outputs.append(all_video_clips)
+
+    return torch.stack(video_outputs, dim=0).to(device) if video_outputs else None
