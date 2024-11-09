@@ -347,13 +347,15 @@ def load_and_transform_video_data(
 
             video_clip = frame_sampler(clip["video"]) / 255.0  # Приводим к диапазону 0-1
 
-            # Убедимся, что все кадры в видео имеют 3 канала
+            # Обеспечиваем 3 канала для каждого кадра перед нормализацией
             video_clip = torch.stack([ensure_three_channels(frame) for frame in video_clip], dim=0)
-            if any(frame.shape[0] != 3 for frame in video_clip):
-                raise RuntimeError("Some frames do not have 3 channels after conversion.")
+
+            # Убедимся, что тензор имеет формат (C, T, H, W) перед применением ShortSideScale
+            if video_clip.ndim == 4:
+                video_clip = video_clip.permute(1, 0, 2, 3)  # Переставляем оси в (C, T, H, W)
 
             # Применяем нормализацию к каждому кадру
-            video_clip = torch.stack([video_transform(frame) for frame in video_clip], dim=0)
+            video_clip = torch.stack([video_transform(frame) for frame in video_clip], dim=1)  # (C, T, H, W)
 
             all_video_clips.append(video_clip)
 
@@ -364,3 +366,5 @@ def load_and_transform_video_data(
             video_outputs.append(all_video_clips)
 
     return torch.stack(video_outputs, dim=0).to(device) if video_outputs else None
+
+
