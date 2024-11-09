@@ -326,22 +326,21 @@ def load_and_transform_video_data(
                 logger.warning("Clip not found.")
                 continue
 
+            # Extract and preprocess the video clip
             video_clip = frame_sampler(clip["video"]) / 255.0
             video_clip = torch.stack([ensure_three_channels(frame) for frame in video_clip], dim=0)
-            logger.debug(f"Video clip shape after ensuring 3 channels: {video_clip.shape}")
+            # Change shape from (T, C, H, W) to (C, T, H, W)
+            video_clip = video_clip.permute(1, 0, 2, 3)
+            logger.debug(f"Video clip shape before video_transform: {video_clip.shape}")
 
-            # Проверка и перестановка осей для ShortSideScale
-            if video_clip.ndim == 4:
-                video_clip = video_clip.permute(1, 0, 2, 3)  # (T, C, H, W) -> (C, T, H, W)
-                logger.debug(f"Video clip shape before ShortSideScale: {video_clip.shape}")
-
-            # Применяем нормализацию к каждому кадру
-            video_clip = torch.stack([video_transform(frame) for frame in video_clip.permute(1, 0, 2, 3)], dim=1)
-            logger.debug(f"Video clip shape after normalization: {video_clip.shape}")
+            # Apply the transformations to the entire video clip
+            video_clip = video_transform(video_clip)
+            logger.debug(f"Video clip shape after video_transform: {video_clip.shape}")
 
             all_video_clips.append(video_clip)
 
         if all_video_clips:
+            # Apply spatial cropping
             all_video_clips = [SpatialCrop(224, num_crops=3)([clip]) for clip in all_video_clips]
             all_video_clips = torch.stack(all_video_clips, dim=0)
             video_outputs.append(all_video_clips)
@@ -349,5 +348,6 @@ def load_and_transform_video_data(
     if video_outputs:
         return torch.stack(video_outputs, dim=0).to(device)
     return None
+
 
 
