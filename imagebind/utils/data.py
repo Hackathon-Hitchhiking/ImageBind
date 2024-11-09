@@ -16,12 +16,12 @@ from PIL import Image
 from loguru import logger
 
 # from pytorchvideo import transforms as pv_transforms
-from imagebind_torchvision.main import ShortSideScale, UniformTemporalSubsample
+from imagebind.imagebind_torchvision.main import ShortSideScale, UniformTemporalSubsample
 from pytorchvideo.data.clip_sampling import ConstantClipsPerVideoSampler
 from pytorchvideo.data.encoded_video import EncodedVideo
 from torchvision import transforms
 
-from utils.multimodal_preprocessors import SimpleTokenizer
+from imagebind.utils.multimodal_preprocessors import SimpleTokenizer
 
 DEFAULT_AUDIO_FRAME_SHIFT_MS = 10  # in milliseconds
 BPE_PATH = "bpe/bpe_simple_vocab_16e6.txt.gz"
