@@ -115,7 +115,8 @@ def load_and_transform_text(text, device):
     logger.debug("extracting text")
     if text is None:
         return None
-    tokenizer = SimpleTokenizer(bpe_path=BPE_PATH)
+    bpe_path = return_bpe_path()
+    tokenizer = SimpleTokenizer(bpe_path=bpe_path)
     tokens = [tokenizer(t).unsqueeze(0).to(device) for t in text]
     tokens = torch.cat(tokens, dim=0)
     return tokens
