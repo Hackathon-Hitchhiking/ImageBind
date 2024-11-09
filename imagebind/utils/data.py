@@ -251,14 +251,6 @@ def uniform_crop(images, size, spatial_idx, boxes=None, scale_size=None):
 
 
 class SpatialCrop(nn.Module):
-    """
-    Convert the video into 3 smaller clips spatially. Must be used after the
-        temporal crops to get spatial crops, and should be used with
-        -2 in the spatial crop at the slowfast augmentation stage (so full
-        frames are passed in here). Will return a larger list with the
-        3x spatial crops as well.
-    """
-
     def __init__(self, crop_size: int = 224, num_crops: int = 3):
         super().__init__()
         self.crop_size = crop_size
@@ -269,18 +261,12 @@ class SpatialCrop(nn.Module):
             self.crops_to_ext = [1]
             self.flipped_crops_to_ext = []
         else:
-            raise NotImplementedError("Nothing else supported yet")
+            raise NotImplementedError("Only 1 or 3 crops supported")
 
     def forward(self, videos):
-        """
-        Args:
-            videos: A list of C, T, H, W videos.
-        Returns:
-            videos: A list with 3x the number of elements. Each video converted
-                to C, T, H', W' by spatial cropping.
-        """
-        assert isinstance(videos, list), "Must be a list of videos after temporal crops"
-        assert all([video.ndim == 4 for video in videos]), "Must be (C,T,H,W)"
+        assert isinstance(videos, list), "Expected a list of videos"
+        assert all(video.ndim == 4 for video in videos), "Each video must have 4 dimensions (C, T, H, W)"
+
         res = []
         for video in videos:
             for spatial_idx in self.crops_to_ext:
@@ -294,14 +280,14 @@ class SpatialCrop(nn.Module):
 
 
 def ensure_three_channels(tensor):
-    """Проверяет и преобразует кадр в 3 канала, если это необходимо."""
-    if tensor.shape[0] == 1:  # Черно-белое изображение
+    if tensor.shape[0] == 1:
         tensor = tensor.repeat(3, 1, 1)
-    elif tensor.shape[0] == 2:  # Два канала
+    elif tensor.shape[0] == 2:
         tensor = torch.cat([tensor, tensor[:1]], dim=0)
     elif tensor.shape[0] != 3:
         raise ValueError(f"Unexpected number of channels: {tensor.shape[0]}")
     return tensor
+
 
 def load_and_transform_video_data(
         video_paths,
@@ -329,12 +315,7 @@ def load_and_transform_video_data(
     frame_sampler = UniformTemporalSubsample(num_samples=clip_duration)
 
     for video_path in video_paths:
-        video = EncodedVideo.from_path(
-            video_path,
-            decoder="decord",
-            decode_audio=False,
-        )
-
+        video = EncodedVideo.from_path(video_path, decoder="decord", decode_audio=False)
         all_clips_timepoints = get_clip_timepoints(clip_sampler, video.duration)
         all_video_clips = []
 
@@ -345,26 +326,28 @@ def load_and_transform_video_data(
                 logger.warning("Clip not found.")
                 continue
 
-            video_clip = frame_sampler(clip["video"]) / 255.0  # Приводим к диапазону 0-1
-
-            # Обеспечиваем 3 канала для каждого кадра перед нормализацией
+            video_clip = frame_sampler(clip["video"]) / 255.0
             video_clip = torch.stack([ensure_three_channels(frame) for frame in video_clip], dim=0)
+            logger.debug(f"Video clip shape after ensuring 3 channels: {video_clip.shape}")
 
-            # Убедимся, что тензор имеет формат (C, T, H, W) перед применением ShortSideScale
+            # Проверка и перестановка осей для ShortSideScale
             if video_clip.ndim == 4:
-                video_clip = video_clip.permute(1, 0, 2, 3)  # Переставляем оси в (C, T, H, W)
+                video_clip = video_clip.permute(1, 0, 2, 3)  # (T, C, H, W) -> (C, T, H, W)
+                logger.debug(f"Video clip shape before ShortSideScale: {video_clip.shape}")
 
             # Применяем нормализацию к каждому кадру
-            video_clip = torch.stack([video_transform(frame) for frame in video_clip], dim=1)  # (C, T, H, W)
+            video_clip = torch.stack([video_transform(frame) for frame in video_clip.permute(1, 0, 2, 3)], dim=1)
+            logger.debug(f"Video clip shape after normalization: {video_clip.shape}")
 
             all_video_clips.append(video_clip)
 
         if all_video_clips:
-            # Применение SpatialCrop и сборка видео клипов
             all_video_clips = [SpatialCrop(224, num_crops=3)([clip]) for clip in all_video_clips]
             all_video_clips = torch.stack(all_video_clips, dim=0)
             video_outputs.append(all_video_clips)
 
-    return torch.stack(video_outputs, dim=0).to(device) if video_outputs else None
+    if video_outputs:
+        return torch.stack(video_outputs, dim=0).to(device)
+    return None
 
 
